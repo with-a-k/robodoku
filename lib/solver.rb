@@ -6,15 +6,7 @@ class Solver
   end
 
   def solve
-    until puzzle.solved?
-      buffer = puzzle.cells
-      puzzle.cells.sort_by { |cell| cell.possible.length }.each { |cell| cell.update }
-      if buffer == puzzle.cells
-        require 'pry'
-        binding.pry
-        puzzle.cells.each { |cell| cell.check_for_loners }
-      end
-    end
+    puzzle.solve
     puzzle.to_s
   end
 end
@@ -57,7 +49,7 @@ class Board
       row.chars.each_with_index.map do |spot, col_index|
         Cell.new(row_index, col_index, spot, self)
       end
-    end.flatten
+    end.flatten.reject { |cell| cell.row > 8 }
     make_groups
   end
 
@@ -74,13 +66,29 @@ class Board
   def to_s
     cells.reduce("") { |output, cell| output << cell.value }
   end
+
+  def empty_cells
+    cells.select { |cell| cell.value == " " }
+  end
+
+  def solve
+    until solved?
+      buffer = empty_cells
+      empty_cells.sort_by { |cell| cell.possible.length }.each { |cell| cell.update }
+      if buffer == empty_cells
+        empty_cells.each { |cell| cell.check_for_loners }
+        if buffer == empty_cells
+          break
+        end
+      end
+    end
+  end
 end
 
 class Cell
   include Inspector
   inspector :row, :column, :block, :value, :possible
-  attr_reader :row, :column, :board, :block
-  attr_accessor :value, :possible
+  attr_reader :row, :column, :board, :block, :possible, :value
 
   def initialize(row, column, value, board)
     @row = row
@@ -88,14 +96,13 @@ class Cell
     @board = board
     @block = (3*(row/3))+(column/3)
     @value = value
-    @possible = value
-    @possible = "123456789" if possible == " "
-    @possible = "----------" if possible == "\n"
+    @possible = value * 10
+    @possible = "123456789" if value == " "
+    @possible = "-" if value == "\n"
   end
 
   def update
-    return if value != " "
-    possible = peers.reduce(@possible) { |possible, cell| possible.delete(cell.value) }
+    @possible = peers.reduce(possible) { |options, cell| options.delete(cell.value) }
     if possible.length == 1
       @value = possible
       @possible = value * 10
@@ -110,23 +117,22 @@ class Cell
     end
   end
 
-  private
   def row_loner?(digit)
-    if board.rows[row].reject { |cell| cell == self }.none? { |cell| cell.possible.include?(digit) }
+    if same_row.none? { |cell| cell.possible.include?(digit) }
       @value = digit
       @possible = value * 10
     end
   end
 
   def column_loner?(digit)
-    if board.cols[column].reject { |cell| cell == self }.none? { |cell| cell.possible.include?(digit) }
+    if same_column.none? { |cell| cell.possible.include?(digit) }
       @value = digit
       @possible = value * 10
     end
   end
 
   def block_loner?(digit)
-    if board.blocks[block].reject { |cell| cell == self }.none? { |cell| cell.possible.include?(digit) }
+    if same_block.none? { |cell| cell.possible.include?(digit) }
       @value = digit
       @possible = value * 10
     end
@@ -135,5 +141,17 @@ class Cell
   def peers
     [*(board.rows[row]), *(board.cols[column]), *(board.blocks[block])].
     reject { |cell| cell == self}.uniq
+  end
+
+  def same_row
+    peers.select { |cell| cell.row == row }
+  end
+
+  def same_column
+    peers.select { |cell| cell.column == column }
+  end
+
+  def same_block
+    peers.select { |cell| cell.block == block }
   end
 end
