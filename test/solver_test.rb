@@ -2,6 +2,7 @@ require './lib/sudoku'
 require './lib/solver'
 require "minitest"
 require "minitest/autorun"
+require 'pry'
 
 class SolverTest < Minitest::Test
   def test_instantiates_properly
@@ -26,7 +27,7 @@ class SolverTest < Minitest::Test
                    "         \n",
                    "         \n",
                    "         \n"])
-    b.rows[0][0].update
+    b.rows[0][0].update!
     assert_equal "1", b.rows[0][0].value
   end
 
@@ -40,9 +41,9 @@ class SolverTest < Minitest::Test
                    "         \n",
                    "         \n",
                    "         \n"])
-    b.rows[0][0].update
-    b.rows[0][8].update
-    b.rows[8][8].update
+    b.rows[0][0].update!
+    b.rows[0][8].update!
+    b.rows[8][8].update!
     assert_equal " ", b.rows[0][0].value
     assert_equal " ", b.rows[0][8].value
     assert_equal " ", b.rows[8][8].value
@@ -59,8 +60,8 @@ class SolverTest < Minitest::Test
                    "         \n",
                    "         \n"])
     assert_equal "123456789", b.rows[0][0].possible
-    b.rows[0][0].update
-    b.rows[8][7].update
+    b.rows[0][0].update!
+    b.rows[8][7].update!
     assert_equal "19", b.rows[0][0].possible
     assert_equal "12345679", b.rows[8][7].possible
   end
@@ -75,8 +76,8 @@ class SolverTest < Minitest::Test
                    "         \n",
                    "         \n",
                    "        1\n"])
-    b.rows[0].each { |cell| cell.update }
-    b.rows[0][0].check_for_loners
+    b.rows[0].each { |cell| cell.update! }
+    b.rows[0][0].check_for_loners!
     assert_equal "1", b.rows[0][0].value
   end
 
@@ -90,8 +91,8 @@ class SolverTest < Minitest::Test
                    "7        \n",
                    "    1    \n",
                    "        1\n"])
-    b.cols[0].each { |cell| cell.update }
-    b.cols[0][0].check_for_loners
+    b.cols[0].each { |cell| cell.update! }
+    b.cols[0][0].check_for_loners!
     assert_equal "1", b.cols[0][0].value
   end
 
@@ -105,8 +106,8 @@ class SolverTest < Minitest::Test
                    "         \n",
                    "         \n",
                    " 1       \n"])
-    b.blocks[0].each { |cell| cell.update }
-    b.blocks[0][0].check_for_loners
+    b.blocks[0].each { |cell| cell.update! }
+    b.blocks[0][0].check_for_loners!
     assert_equal "1", b.blocks[0][0].value
   end
 
@@ -156,5 +157,24 @@ class SolverTest < Minitest::Test
     assert_equal "897651243\n514382697\n263749581\n972534816\n"\
                  "486217935\n351968472\n135896724\n748125369\n"\
                  "629473158\n", b.to_s
+  end
+
+  def test_advanced_exclusion_works
+    b = Board.new(["         \n",
+                   " 1267    \n",
+                   " 3489    \n",
+                   "       5 \n",
+                   " 21      \n",
+                   " 43      \n",
+                   "         \n",
+                   "         \n",
+                   "         \n"])
+    b.cells.each { |cell| cell.update! }
+    b.filter_cells_for_possibility(3, "5")
+    refute b.intersection(b.blocks[0], b.cols[0]).any? { |cell| cell.possible.include?("5") },
+      "There's still a 5 in the possibility ranges of the intersection of block 0 and column 0."
+    b.filter_cells_for_possibility(0, "5")
+    refute b.intersection(b.blocks[1], b.rows[0]).any? { |cell| cell.possible.include?("5") },
+      "There's still a 5 in the possibility ranges of the intersection of block 1 and row 0."
   end
 end

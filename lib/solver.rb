@@ -1,3 +1,5 @@
+require 'set'
+
 class Solver
   attr_reader :puzzle
 
@@ -74,14 +76,58 @@ class Board
   def solve
     until solved?
       buffer = empty_cells
-      empty_cells.sort_by { |cell| cell.possible.length }.each { |cell| cell.update }
+      empty_cells.sort_by { |cell| cell.possible.length }.each { |cell| cell.update! }
       if buffer == empty_cells
-        empty_cells.each { |cell| cell.check_for_loners }
+        empty_cells.each { |cell| cell.check_for_loners! }
         if buffer == empty_cells
-          break
+          advanced_block_exclusion
+          if buffer == empty_cells
+            puts "Couldn't solve, here's what I could manage:"
+            break
+          end
         end
       end
     end
+  end
+
+  def advanced_block_exclusion
+    (0...9).each do |block|
+      scan_for = @blocks[block].reduce("123456789") { |unassigned, cell| unassigned.delete(cell.value) }
+      scan_for.each_char do |digit|
+        filter_cells_for_possibility(block, digit)
+      end
+    end
+  end
+
+  def filter_cells_for_possibility(block, digit)
+    options = @blocks[block].find_all { |cell| cell.possible.include?(digit) }
+    if same_column?(options)
+      isolate_to_intersection(digit, @blocks[block], @cols[options.sample.column])
+    elsif same_row?(options)
+      isolate_to_intersection(digit, @blocks[block], @rows[options.sample.row])
+    end
+  end
+
+  def same_column?(cells)
+    random_column = cells.sample.column
+    cells.all? { |cell| cell.column == random_column }
+  end
+
+  def same_row?(cells)
+    random_row = cells.sample.row
+    cells.all? { |cell| cell.row == random_row }
+  end
+
+  def isolate_to_intersection(digit, block, line) #a block from blocks and a row or column
+    anti_intersection(block, line).each { |cell| cell.possible.delete!(digit) }
+  end
+
+  def anti_intersection(block, line)
+    block.to_set ^ line.to_set
+  end
+
+  def intersection(block, line)
+    block & line
   end
 end
 
@@ -101,7 +147,7 @@ class Cell
     @possible = "-" if value == "\n"
   end
 
-  def update
+  def update!
     @possible = peers.reduce(possible) { |options, cell| options.delete(cell.value) }
     if possible.length == 1
       @value = possible
@@ -109,7 +155,7 @@ class Cell
     end
   end
 
-  def check_for_loners
+  def check_for_loners!
     possible.each_char do |digit|
       row_loner?(digit)
       column_loner?(digit)
