@@ -1,4 +1,3 @@
-require './lib/sudoku'
 require './lib/solver'
 require "minitest"
 require "minitest/autorun"
