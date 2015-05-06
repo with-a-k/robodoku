@@ -16,53 +16,35 @@ class SolverTest < Minitest::Test
                        "912345678\n"])
   end
 
+  HasPeers = Struct.new :fake_peers do
+    def peers(cell)
+      fake_peers
+    end
+  end
+
+  def cell_with_peers(peer_string)
+    peers = peer_string.chars.map { |c| Cell.new 1, 2, c, nil }
+    board = HasPeers.new(peers)
+    Cell.new 1, 2, ' ', board
+  end
+
+  # def cell_with_peer_possibles(peer_possible_array)
+  #   peers = peer_possible_array.map { |string| Cell.new 1, 2, " ", nil }
+  #   board = HasPeers.new(peers)
+  #   peers.each_with_index { |peer, index| peer.@possible = peer_possible_array[index] }
+  #   Cell.new 1, 2, ' ', board
+  # end
+
   def test_cells_will_adopt_a_value_if_it_is_the_only_possibility
-    b = Board.new([" 23456789\n",
-                   "         \n",
-                   "         \n",
-                   "         \n",
-                   "         \n",
-                   "         \n",
-                   "         \n",
-                   "         \n",
-                   "         \n"])
-    b.rows[0][0].update!
-    assert_equal "1", b.rows[0][0].value
+    assert_equal "1", cell_with_peers('23456789').update!.value
   end
 
   def test_cells_will_usually_not_adopt_a_value_if_uncertainty_exists
-    b = Board.new([" 2345678 \n",
-                   "         \n",
-                   "         \n",
-                   "         \n",
-                   "         \n",
-                   "         \n",
-                   "         \n",
-                   "         \n",
-                   "         \n"])
-    b.rows[0][0].update!
-    b.rows[0][8].update!
-    b.rows[8][8].update!
-    assert_equal " ", b.rows[0][0].value
-    assert_equal " ", b.rows[0][8].value
-    assert_equal " ", b.rows[8][8].value
+    assert_equal " ", cell_with_peers('2345678').update!.value
   end
 
   def test_cells_will_remove_possibilities_when_updating
-    b = Board.new([" 2345678 \n",
-                   "         \n",
-                   "         \n",
-                   "         \n",
-                   "         \n",
-                   "         \n",
-                   "         \n",
-                   "         \n",
-                   "         \n"])
-    assert_equal "123456789", b.rows[0][0].possible
-    b.rows[0][0].update!
-    b.rows[8][7].update!
-    assert_equal "19", b.rows[0][0].possible
-    assert_equal "12345679", b.rows[8][7].possible
+    assert_equal "19", cell_with_peers('2345678').update!.possible
   end
 
   def test_cells_will_adopt_a_value_if_no_other_cell_in_its_row_can
@@ -75,8 +57,8 @@ class SolverTest < Minitest::Test
                    "         \n",
                    "         \n",
                    "        1\n"])
-    b.rows[0].each { |cell| cell.update! }
-    b.rows[0][0].check_for_loners!
+    b.empty_cells.each { |cell| cell.update! }
+    b.basic_group_exclusion(b.rows[0])
     assert_equal "1", b.rows[0][0].value
   end
 
@@ -90,8 +72,8 @@ class SolverTest < Minitest::Test
                    "7        \n",
                    "    1    \n",
                    "        1\n"])
-    b.cols[0].each { |cell| cell.update! }
-    b.cols[0][0].check_for_loners!
+    b.empty_cells.each { |cell| cell.update! }
+    b.basic_group_exclusion(b.cols[0])
     assert_equal "1", b.cols[0][0].value
   end
 
@@ -105,8 +87,8 @@ class SolverTest < Minitest::Test
                    "         \n",
                    "         \n",
                    " 1       \n"])
-    b.blocks[0].each { |cell| cell.update! }
-    b.blocks[0][0].check_for_loners!
+    b.empty_cells.each { |cell| cell.update! }
+    b.basic_group_exclusion(b.blocks[0])
     assert_equal "1", b.blocks[0][0].value
   end
 
@@ -175,5 +157,43 @@ class SolverTest < Minitest::Test
     b.filter_cells_for_possibility(0, "5")
     refute b.intersection(b.blocks[1], b.rows[0]).any? { |cell| cell.possible.include?("5") },
       "There's still a 5 in the possibility ranges of the intersection of block 1 and row 0."
+  end
+
+  def test_board_inspect_is_helpful
+    b = Board.new(["         \n",
+                   " 1267    \n",
+                   " 3489    \n",
+                   "       5 \n",
+                   " 21      \n",
+                   " 43      \n",
+                   "         \n",
+                   "         \n",
+                   "         \n"])
+    desired = "#<Board:\n" + 
+              "|         |\n" +
+              "| 1267    |\n" +
+              "| 3489    |\n" +
+              "|       5 |\n" +
+              "| 21      |\n" +
+              "| 43      |\n" +
+              "|         |\n" +
+              "|         |\n" +
+              "|         |\n" + ">"
+    assert_equal desired, b.inspect
+  end
+
+  def test_cell_inspect_is_helpful
+    b = Board.new(["         \n",
+                   " 1267    \n",
+                   " 3489    \n",
+                   "       5 \n",
+                   " 21      \n",
+                   " 43      \n",
+                   "         \n",
+                   "         \n",
+                   "         \n"])
+    cell = b.rows[3][0]
+    desired = "#<Cell: row: 3, column: 0, block: 3, value: \" \", possible: 123456789>"
+    assert_equal desired, cell.inspect
   end
 end

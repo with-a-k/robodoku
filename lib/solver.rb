@@ -1,10 +1,11 @@
 require 'set'
+require 'pry'
 
 class Solver
   attr_reader :puzzle
 
-  def initialize(puzzle_text)
-    @puzzle = Board.new(puzzle_text)
+  def initialize(puzzle_lines)
+    @puzzle = Board.new(puzzle_lines)
   end
 
   def solve
@@ -13,46 +14,23 @@ class Solver
   end
 end
 
-module Inspector
-  
-  def inspect
-    string = "#<#{self.class.name}:#{self.object_id} "
-    fields = self.class.inspector_fields.map{|field| "#{field}: #{self.send(field)}"}
-    string << fields.join(", ") << ">"
-    string.gsub("\n", "\\n")
-  end
-  
-  def self.inspected
-    @inspected ||= []
-  end
-  
-  def self.included source
-    # $stdout.puts "Overriding inspect on #{source}"
-    inspected << source
-    source.class_eval do
-      def self.inspector *fields
-        @inspector_fields = *fields
-      end
-      
-      def self.inspector_fields
-        @inspector_fields ||= []
-      end
-    end
-  end
-end
-
 class Board
-  include Inspector
-  inspector :cells
   attr_reader :cells, :rows, :cols, :blocks
 
-  def initialize(puzzle_text)
-    @cells = puzzle_text.each_with_index.map do |row, row_index|
+  def initialize(puzzle_lines)
+    @cells = puzzle_lines.each_with_index.map do |row, row_index|
       row.chars.each_with_index.map do |spot, col_index|
         Cell.new(row_index, col_index, spot, self)
       end
     end.flatten.reject { |cell| cell.row > 8 }
     make_groups
+  end
+
+  def inspect
+    inspected_rows = rows.values
+      .map { |row| row.map(&:value).join }
+      .map { |inspected| "|#{inspected.chomp}|\n" }
+    "#<Board:\n#{inspected_rows.join}>"
   end
 
   def make_groups 
@@ -73,21 +51,43 @@ class Board
     cells.select { |cell| cell.value == " " }
   end
 
+  def count_possibilities
+    empty_cells.reduce(1) { |options, cell| options * cell.possible.length }
+  end
+
   def solve
+    tries = 0
     until solved?
-      buffer = empty_cells
+      buffer = [empty_cells, count_possibilities]
       empty_cells.sort_by { |cell| cell.possible.length }.each { |cell| cell.update! }
-      if buffer == empty_cells
-        empty_cells.each { |cell| cell.check_for_loners! }
-        if buffer == empty_cells
-          advanced_block_exclusion
-          if buffer == empty_cells
-            puts "Couldn't solve, here's what I could manage:"
-            break
-          end
-        end
+      next if buffer != [empty_cells, count_possibilities]
+      (rows.values + cols.values + blocks.values).each do |group|
+        basic_group_exclusion(group)
+        cells.each { |cell| cell.update! }
+      end
+      next if buffer != empty_cells
+      binding.pry
+      advanced_block_exclusion
+      if buffer == [empty_cells, count_possibilities] || tries == 7
+        binding.pry
+        puts "Couldn't solve, here's what I could manage:"
+        break
+      end
+      binding.pry
+      tries += 1
+    end
+  end
+
+  def basic_group_exclusion(group)
+    group.each { |cell| cell.update! }
+    (1..9).each do |value|
+      if group.one? { |cell| cell.possible.include?(value.to_s) }
+        choice = group.find { |cell| cell.possible.include?(value.to_s) }
+        choice.assign!(value.to_s)
+        choice.peers.each { |peer| peer.remove_possibility!(value.to_s) }
       end
     end
+    group.each { |cell| cell.update! }
   end
 
   def advanced_block_exclusion
@@ -129,11 +129,17 @@ class Board
   def intersection(block, line)
     block & line
   end
+
+  def peers(cell)
+    (rows[cell.row] +
+     cols[cell.column] +
+     blocks[cell.block]
+    ).reject { |potential_peer| potential_peer == cell}
+     .uniq
+  end
 end
 
 class Cell
-  include Inspector
-  inspector :row, :column, :block, :value, :possible
   attr_reader :row, :column, :board, :block, :possible, :value
 
   def initialize(row, column, value, board)
@@ -144,7 +150,10 @@ class Cell
     @value = value
     @possible = value * 10
     @possible = "123456789" if value == " "
-    @possible = "-" if value == "\n"
+  end
+
+  def inspect
+    "#<Cell: row: #{row}, column: #{column}, block: #{block}, value: \"#{value}\", possible: #{possible}>"
   end
 
   def update!
@@ -153,51 +162,19 @@ class Cell
       @value = possible
       @possible = value * 10
     end
-  end
-
-  def check_for_loners!
-    possible.each_char do |digit|
-      row_loner?(digit)
-      column_loner?(digit)
-      block_loner?(digit)
-    end
-  end
-
-  def row_loner?(digit)
-    if same_row.none? { |cell| cell.possible.include?(digit) }
-      @value = digit
-      @possible = value * 10
-    end
-  end
-
-  def column_loner?(digit)
-    if same_column.none? { |cell| cell.possible.include?(digit) }
-      @value = digit
-      @possible = value * 10
-    end
-  end
-
-  def block_loner?(digit)
-    if same_block.none? { |cell| cell.possible.include?(digit) }
-      @value = digit
-      @possible = value * 10
-    end
+    self
   end
 
   def peers
-    [*(board.rows[row]), *(board.cols[column]), *(board.blocks[block])].
-    reject { |cell| cell == self}.uniq
+    board.peers self
   end
 
-  def same_row
-    peers.select { |cell| cell.row == row }
+  def assign!(value)
+    @value = value
+    @possible = value * 10
   end
 
-  def same_column
-    peers.select { |cell| cell.column == column }
-  end
-
-  def same_block
-    peers.select { |cell| cell.block == block }
+  def remove_possibility!(digit)
+    @possible.delete(digit)
   end
 end
