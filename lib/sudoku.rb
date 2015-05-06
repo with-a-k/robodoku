@@ -1,4 +1,4 @@
-require './lib/solver'
+require_relative './solver'
 
 unless ARGV[0].nil?
   puzzle_path = ARGV[0]

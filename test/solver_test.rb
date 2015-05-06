@@ -1,4 +1,4 @@
-require './lib/solver'
+require_relative '../lib/solver'
 require "minitest"
 require "minitest/autorun"
 require 'pry'
