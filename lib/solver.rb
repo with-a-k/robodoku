@@ -65,15 +65,11 @@ class Board
         basic_group_exclusion(group)
         cells.each { |cell| cell.update! }
       end
-      next if buffer != empty_cells
-      binding.pry
+      next if buffer != [empty_cells, count_possibilities]
       advanced_block_exclusion
-      if buffer == [empty_cells, count_possibilities] || tries == 7
-        binding.pry
-        puts "Couldn't solve, here's what I could manage:"
-        break
+      if buffer == [empty_cells, count_possibilities] && tries == 9
+        guess_at_cells
       end
-      binding.pry
       tries += 1
     end
   end
@@ -97,6 +93,37 @@ class Board
         filter_cells_for_possibility(block, digit)
       end
     end
+  end
+
+  def guess_at_cells
+    successful_guess = false
+    empty_cells.sort_by { |cell| cell.possible.length }.each do |cell|
+      cell.possible.each_char do |value|
+        if suppose(cell.row, cell.column, value)
+          cell.assign!(value)
+          return
+        end
+      end
+    end
+    failed_solve
+  end
+
+  def failed_solve
+    puts "Couldn't solve. Ending state is:"
+    to_s
+    raise RuntimeError, "Puzzle could not be solved."
+  end
+
+  def duplicate
+    Board.new(self.to_s.each_line.map { |line| line.gsub(/\|/, "") })
+  end
+
+  def suppose(cell_row, cell_col, value)
+    test_board = duplicate
+    test_board.rows[cell_row][cell_col].assign!(value)
+    test_board.empty_cells.sort_by { |cell| cell.possible.length }.each { |cell| cell.update! }
+    return false if test_board.empty_cells.any? { |cell| cell.possible.empty? }
+    true
   end
 
   def filter_cells_for_possibility(block, digit)
