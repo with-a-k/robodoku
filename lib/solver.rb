@@ -47,8 +47,8 @@ class Board
     cells.reduce("") { |output, cell| output << cell.value }
   end
 
-  def empty_cells
-    cells.select { |cell| cell.value == " " }
+  def empty_cells(group = cells)
+    group.select { |cell| cell.value == " " }
   end
 
   def count_possibilities
@@ -67,8 +67,13 @@ class Board
       end
       next if buffer != [empty_cells, count_possibilities]
       advanced_block_exclusion
+      next if buffer != [empty_cells, count_possibilities]
+      binding.pry
+      find_naked_pairs (@rows)
       if buffer == [empty_cells, count_possibilities] && tries == 9
-        guess_at_cells
+        # guess_at_cells
+        binding.pry
+        failed_solve
       end
       tries += 1
     end
@@ -95,6 +100,34 @@ class Board
     end
   end
 
+  def find_naked_pairs (groups)
+    groups.values.each do |group|
+      unless two_candidate_cells(group).empty?
+        act_on_naked_pairs(group)
+      end
+    end
+  end
+
+  def extract_naked_pairs(group)
+    two_candidate_cells(group).group_by{ |cell| cell.possible }
+                .values.select { |equals| equals.length == 2 }
+  end
+
+  def act_on_naked_pairs(group)
+    extract_naked_pairs(group).each do |pair|
+      remove = pair[0].possible
+      empty_cells(group).each do |cell|
+        unless pair.include?(cell)
+          remove.each_char { |digit| cell.remove_possibility!(digit) }
+        end
+      end
+    end
+  end
+
+  def two_candidate_cells(group)
+    group.select { |cell| cell.possible.length == 2 }
+  end
+
   def guess_at_cells
     successful_guess = false
     empty_cells.sort_by { |cell| cell.possible.length }.each do |cell|
@@ -110,8 +143,8 @@ class Board
 
   def failed_solve
     puts "Couldn't solve. Ending state is:"
-    to_s
-    raise RuntimeError, "Puzzle could not be solved."
+    puts to_s
+    abort("Couldn't solve.")
   end
 
   def duplicate
