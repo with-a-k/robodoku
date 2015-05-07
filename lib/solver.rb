@@ -70,6 +70,8 @@ class Board
       next if buffer != [empty_cells, count_possibilities]
       binding.pry
       find_naked_pairs (@rows)
+      find_naked_pairs (@cols)
+      find_naked_pairs (@blocks)
       if buffer == [empty_cells, count_possibilities] && tries == 9
         # guess_at_cells
         binding.pry
@@ -100,7 +102,7 @@ class Board
     end
   end
 
-  def find_naked_pairs (groups)
+  def find_naked_pairs(groups)
     groups.values.each do |group|
       unless two_candidate_cells(group).empty?
         act_on_naked_pairs(group)
