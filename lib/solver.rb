@@ -74,7 +74,6 @@ class Board
       find_naked_pairs (@blocks)
       if buffer == [empty_cells, count_possibilities] && tries == 9
         # guess_at_cells
-        binding.pry
         failed_solve
       end
       tries += 1
